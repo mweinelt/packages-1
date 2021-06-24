@@ -48,44 +48,43 @@ local function get_wifi_interface_labels()
 end
 
 local function scrape()
-  local metric_hostapd_station_vht = metric("hostapd_station_vht", "gauge")
-  local metric_hostapd_station_ht = metric("hostapd_station_ht", "gauge")
-  local metric_hostapd_station_wmm = metric("hostapd_station_wmm", "gauge")
-  local metric_hostapd_station_mfp = metric("hostapd_station_mfp", "gauge")
+  local metric_hostapd_station_rx_packets = metric("hostapd_station_receive_packets_total", "counter")
+  local metric_hostapd_station_rx_bytes = metric("hostapd_station_receive_bytes_total", "counter")
+  local metric_hostapd_station_tx_packets = metric("hostapd_station_transmit_packets_total", "counter")
+  local metric_hostapd_station_tx_bytes = metric("hostapd_station_transmit_bytes_total", "counter")
 
-  local metric_hostapd_station_rx_packets = metric("hostapd_station_rx_packets", "counter")
-  local metric_hostapd_station_rx_bytes = metric("hostapd_station_rx_bytes", "counter")
-  local metric_hostapd_station_tx_packets = metric("hostapd_station_tx_packets", "counter")
-  local metric_hostapd_station_tx_bytes = metric("hostapd_station_tx_bytes", "counter")
+  local metric_hostapd_station_signal = metric("hostapd_station_signal_dbm", "gauge")
+  local metric_hostapd_station_connected_time = metric("hostapd_station_connected_seconds_total", "counter")
+  local metric_hostapd_station_inactive_msec = metric("hostapd_station_inactive_seconds", "gauge")
+  local metric_hostapd_station_flags = metric("hostapd_station_flags", "gauge")
 
-  local metric_hostapd_station_inactive_msec = metric("hostapd_station_inactive_msec", "counter")
-
-  local metric_hostapd_station_signal = metric("hostapd_station_signal", "gauge")
-  local metric_hostapd_station_connected_time = metric("hostapd_station_connected_time", "counter")
-
-  local metric_hostapd_station_wpa = metric("hostapd_station_wpa", "gauge")
   local metric_hostapd_station_sae_group = metric("hostapd_station_sae_group", "gauge")
 
   local metric_hostapd_station_vht_capb_su_beamformee = metric("hostapd_station_vht_capb_su_beamformee", "gauge")
   local metric_hostapd_station_vht_capb_mu_beamformee = metric("hostapd_station_vht_capb_mu_beamformee", "gauge")
 
-  local function evaluate_metrics(labels, vals)
-    for k, v in pairs(vals) do
+  local function evaluate_metrics(labels, kv)
+    for k, v in pairs(kv) do
       if k == "flags" then
-        if string.match(v, "[VHT]") then
-          metric_hostapd_station_vht(labels, 1)
+        local flags = {}
+        for flag in string.gmatch(v, "%u+") do
+          flags[flag] = true
         end
-        if string.match(v, "[HT]") then
-          metric_hostapd_station_ht(labels, 1)
-        end
-        if string.match(v, "[WMM]") then
-          metric_hostapd_station_wmm(labels, 1)
-        end
-        if string.match(v, "[MFP]") then
-          metric_hostapd_station_mfp(labels, 1)
-        end
-      elseif k == "wpa" then
-        metric_hostapd_station_wpa(labels, v)
+
+        labels.flag = "VHT"
+        metric_hostapd_station_flags(labels, flags["VHT"] ~= nil and 1 or 0)
+
+        labels.flag = "HT"
+        metric_hostapd_station_flags(labels, flags["HT"] ~= nil and 1 or 0)
+
+        labels.flag = "WMM"
+        metric_hostapd_station_flags(labels, flags["WMM"] ~= nil and 1 or 0)
+
+        labels.flag = "MFP"
+        metric_hostapd_station_flags(labels, flags["MFP"] ~= nil and 1 or 0)
+
+        labels.flag = nil
+
       elseif k == "rx_packets" then
         metric_hostapd_station_rx_packets(labels, v)
       elseif k == "rx_bytes" then
@@ -95,7 +94,7 @@ local function scrape()
       elseif k == "tx_bytes" then
         metric_hostapd_station_tx_bytes(labels, v)
       elseif k == "inactive_msec" then
-        metric_hostapd_station_inactive_msec(labels, v)
+        metric_hostapd_station_inactive_msec(labels, v / 1000)
       elseif k == "signal" then
         metric_hostapd_station_signal(labels, v)
       elseif k == "connected_time" then
