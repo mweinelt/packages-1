@@ -64,48 +64,63 @@ local function scrape()
   local metric_hostapd_station_vht_capb_mu_beamformee = metric("hostapd_station_vht_capb_mu_beamformee", "gauge")
 
   local function evaluate_metrics(labels, kv)
+    values = {}
     for k, v in pairs(kv) do
-      if k == "flags" then
-        local flags = {}
-        for flag in string.gmatch(v, "%u+") do
-          flags[flag] = true
-        end
+      values[k] = v
+    end
 
-        labels.flag = "VHT"
-        metric_hostapd_station_flags(labels, flags["VHT"] ~= nil and 1 or 0)
-
-        labels.flag = "HT"
-        metric_hostapd_station_flags(labels, flags["HT"] ~= nil and 1 or 0)
-
-        labels.flag = "WMM"
-        metric_hostapd_station_flags(labels, flags["WMM"] ~= nil and 1 or 0)
-
-        labels.flag = "MFP"
-        metric_hostapd_station_flags(labels, flags["MFP"] ~= nil and 1 or 0)
-
-        labels.flag = nil
-
-      elseif k == "rx_packets" then
-        metric_hostapd_station_rx_packets(labels, v)
-      elseif k == "rx_bytes" then
-        metric_hostapd_station_rx_bytes(labels, v)
-      elseif k == "tx_packets" then
-        metric_hostapd_station_tx_packets(labels, v)
-      elseif k == "tx_bytes" then
-        metric_hostapd_station_tx_bytes(labels, v)
-      elseif k == "inactive_msec" then
-        metric_hostapd_station_inactive_msec(labels, v / 1000)
-      elseif k == "signal" then
-        metric_hostapd_station_signal(labels, v)
-      elseif k == "connected_time" then
-        metric_hostapd_station_connected_time(labels, v)
-      elseif k == "sae_group" then
-        metric_hostapd_station_sae_group(labels, v)
-      elseif k == "vht_caps_info" then
-	      local caps = tonumber(string.gsub(v, "0x", ""), 16)
-	      metric_hostapd_station_vht_capb_su_beamformee(labels, bit32.band(bit32.lshift(1, 12), caps) > 0 and 1 or 0)
-	      metric_hostapd_station_vht_capb_mu_beamformee(labels, bit32.band(bit32.lshift(1, 20), caps) > 0 and 1 or 0)
+    -- check if values exist, they may not due to race conditions while querying
+    if values["flags"] then
+      local flags = {}
+      for flag in string.gmatch(values["flags"], "%u+") do
+        flags[flag] = true
       end
+
+      labels.flag = "VHT"
+      metric_hostapd_station_flags(labels, flags["VHT"] ~= nil and 1 or 0)
+
+      labels.flag = "HT"
+      metric_hostapd_station_flags(labels, flags["HT"] ~= nil and 1 or 0)
+
+      labels.flag = "WMM"
+      metric_hostapd_station_flags(labels, flags["WMM"] ~= nil and 1 or 0)
+
+      labels.flag = "MFP"
+      metric_hostapd_station_flags(labels, flags["MFP"] ~= nil and 1 or 0)
+
+      labels.flag = nil
+    end
+
+    -- these metrics can reasonably default to zero, when missing
+    metric_hostapd_station_rx_packets(labels, values["rx_packets"] or 0)
+    metric_hostapd_station_rx_bytes(labels, values["rx_bytes"] or 0)
+    metric_hostapd_station_tx_packets(labels, values["tx_packets"] or 0)
+    metric_hostapd_station_tx_bytes(labels, values["tx_bytes"] or 0)
+
+    -- and these metrics can't be defaulted, so check again
+    if values["inactive_msec"] ~= nil then
+      metric_hostapd_station_inactive_msec(labels, values["inactive_msec"] / 1000)
+    end
+
+    if values["signal"] ~= nil then
+      metric_hostapd_station_signal(labels, values["signal"])
+    end
+
+    if values["connected_time"] ~= nil then
+      metric_hostapd_station_connected_time(labels, values["connected_time"])
+    end
+
+    if values["vht_caps_info"] ~= nil then
+      local caps = tonumber(string.gsub(values["vht_caps_info"], "0x", ""), 16)
+      metric_hostapd_station_vht_capb_su_beamformee(labels, bit32.band(bit32.lshift(1, 12), caps) > 0 and 1 or 0)
+	    metric_hostapd_station_vht_capb_mu_beamformee(labels, bit32.band(bit32.lshift(1, 20), caps) > 0 and 1 or 0)
+    else
+      metric_hostapd_station_vht_capb_su_beamformee(labels, 0)
+	    metric_hostapd_station_vht_capb_mu_beamformee(labels, 0)
+    end
+
+    if values["sae_group"] ~= nil then
+      metric_hostapd_station_sae_group(labels, values["sae_group"])
     end
   end
 
